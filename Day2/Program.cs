@@ -19,14 +19,19 @@ int ProcessInstructions(bool useAim)
                 horizontalPosition += instruction.Item2;
                 depth += aim * instruction.Item2;
             }
-            else if (instruction.Item1.Equals("down")) aim += instruction.Item2;
-            else if (instruction.Item1.Equals("up")) aim -= instruction.Item2;
+            else if (instruction.Item1.Equals("down")) 
+                aim += instruction.Item2;
+            else if (instruction.Item1.Equals("up")) 
+                aim -= instruction.Item2;
         }
         else
         {
-            if (instruction.Item1.Equals("forward")) horizontalPosition += instruction.Item2;
-            else if (instruction.Item1.Equals("down")) depth += instruction.Item2;
-            else if (instruction.Item1.Equals("up")) depth -= instruction.Item2;
+            if (instruction.Item1.Equals("forward"))
+                horizontalPosition += instruction.Item2;
+            else if (instruction.Item1.Equals("down")) 
+                depth += instruction.Item2;
+            else if (instruction.Item1.Equals("up")) 
+                depth -= instruction.Item2;
         }
     }
     return horizontalPosition * depth;
