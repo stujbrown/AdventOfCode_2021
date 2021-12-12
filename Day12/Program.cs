@@ -3,18 +3,18 @@ var nodeLookup = new Dictionary<string, Node>();
 
 foreach (var connection in connections)
 {
-    Node? node0, node1;
-    if (!nodeLookup.TryGetValue(connection[0], out node0))
+    Node GetNode(string name)
     {
-        node0 = new Node { Name = connection[0] };
-        nodeLookup[connection[0]] = node0;
-    }
-    if (!nodeLookup.TryGetValue(connection[1], out node1))
-    {
-        node1 = new Node { Name = connection[1] };
-        nodeLookup[connection[1]] = node1;
-    }
+        if (!nodeLookup.TryGetValue(name, out var node))
+        {
+            node = new Node { Name = name };
+            nodeLookup[name] = node;
+        }
+        return node;
+    };
 
+    Node node0 = GetNode(connection[0]);
+    Node node1 = GetNode(connection[1]);
     node0.Links.Add(node1);
     node1.Links.Add(node0);
 }
@@ -32,7 +32,7 @@ void Solve(bool allowSmallDoubleVisit)
     visitCounts.Add(start, 1);
 
     int routeCount = 0;
-    bool hasDoubleVisited = !allowSmallDoubleVisit;
+    bool doubleVisitCount = !allowSmallDoubleVisit;
 
     StepDown(start);
 
@@ -40,14 +40,14 @@ void Solve(bool allowSmallDoubleVisit)
 
     void StepDown(Node node)
     {
-        stack.Push(node);
-
         if (node.Name == "end")
         {
             ++routeCount;
         }
         else
         {
+            stack.Push(node);
+
             foreach (var link in node.Links)
             {
                 bool isSpecial = link.Name == "end" || link.Name == "start";
@@ -56,12 +56,12 @@ void Solve(bool allowSmallDoubleVisit)
                 int visitCount = 0;
                 visitCounts.TryGetValue(link, out visitCount);
 
-                if (visitCount == 0 || (!isSmallCave && !isSpecial) || (!hasDoubleVisited && visitCount < 2 && isSmallCave))
+                if (visitCount == 0 || (!isSmallCave && !isSpecial) || (!doubleVisitCount && visitCount < 2 && isSmallCave))
                 {
                     visitCounts[link] = visitCount + 1;
                     if (visitCount > 0 && isSmallCave)
                     {
-                        hasDoubleVisited = true;
+                        doubleVisitCount = true;
                     }
 
                     StepDown(link);
@@ -76,14 +76,13 @@ void Solve(bool allowSmallDoubleVisit)
                         visitCounts[link] = visitCount - 1;
                         if (isSmallCave)
                         {
-                            hasDoubleVisited = false;
+                            doubleVisitCount = false;
                         }
                     }
                 }
             }
+            stack.Pop();
         }
-
-        stack.Pop();
     }
 }
 
