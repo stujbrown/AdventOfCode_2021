@@ -43,7 +43,6 @@ UInt64 EvaluatePacket(string binary)
             {
                 operands.Add(EvaluatePacket(binary));
             }
-            currentIndex = endIndex; //?
         }
         else
         {
