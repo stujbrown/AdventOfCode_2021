@@ -2,14 +2,16 @@
     scan.Split(Environment.NewLine).Skip(1).Select(coord => coord.Split(',').Select(x => int.Parse(x)).ToArray()));
 var scans = splitScans.Select(x => x.Select(coord => new Coord { X = coord[0], Y = coord[1], Z = coord[2] }).ToArray()).ToArray();
 
-var map = scans[0].ToList(); // Start from 0 to avoid having to do peicemeal coordinate resolution .
+var map = scans[0].ToList();
+var scanners = new List<Coord>();
+scanners.Add(new Coord());
 var remaining = scans.Skip(1).ToList();
 
 while (remaining.Count > 0)
 {
     foreach (var scan in remaining)
     {
-        if(RunForScan(scan))
+        if (RunForScan(scan))
         {
             remaining.Remove(scan);
             break;
@@ -17,56 +19,77 @@ while (remaining.Count > 0)
     }
 }
 
+int largestDistance = 0;
+for (int i = 0; i < scanners.Count; ++i)
+{
+    for (int j = 0; j < scanners.Count; ++j)
+    {
+        if (i != j)
+        {
+            var diff = new Coord { X = scanners[i].X - scanners[j].X, Y = scanners[i].Y - scanners[j].Y, Z = scanners[i].Z - scanners[j].Z };
+            var distance = Math.Abs(diff.X) + Math.Abs(diff.Y) + Math.Abs(diff.Z);
+            if (distance > largestDistance)
+            {
+                largestDistance = distance;
+            }
+        }
+    }
+}
 
 Console.WriteLine($"Total beacons: {map.Count}");
+Console.WriteLine($"Largest distance: {largestDistance}");
 
 bool RunForScan(Coord[] scan)
 {
     for (int i = 0; i < 24; ++i) // Check each rotation.
     {
-        foreach (var coord in map) // Check each possible offset translation
+        var match = Match(map, scan, i);
+        if (match != null)
         {
-            foreach (var other in scan)
+            foreach (var toAdd in scan)
             {
-                Coord transformedOther = Swizzle(other, i);
-                var originOffset = new Coord { X = coord.X - transformedOther.X, Y = coord.Y - transformedOther.Y, Z = coord.Z - transformedOther.Z };
-                if (Match(map, scan, originOffset, i) >= 12)
-                {
-                    foreach (var toAdd in scan)
-                    {
-                        Coord transformedToAdd = Swizzle(toAdd, i);
-                        var translatedToAdd = new Coord { X = transformedToAdd.X + originOffset.X, Y = transformedToAdd.Y + originOffset.Y, Z = transformedToAdd.Z + originOffset.Z };
-                        if (!map.Contains(translatedToAdd))
-                        {
-                            map.Add(translatedToAdd);
-                        }
-                    }
+                Coord transformedToAdd = Swizzle(toAdd, i);
+                var translatedToAdd = new Coord { X = transformedToAdd.X + match.Value.X, Y = transformedToAdd.Y + match.Value.Y, Z = transformedToAdd.Z + match.Value.Z };
 
-                    return true;
+                if (!map.Contains(translatedToAdd))
+                {
+                    map.Add(translatedToAdd);
                 }
             }
+
+            scanners.Add(match.Value);
+            return true;
         }
     }
     return false;
 }
 
-int Match(List<Coord> lhs, Coord[] rhs, Coord originOffset, int rotationIndex)
+Coord? Match(List<Coord> lhs, Coord[] rhs, int rotationIndex)
 {
-    int numMatches = 0;
+    var diffCounts = new Dictionary<Coord, int>();
     foreach (var coord in lhs)
     {
         foreach (var other in rhs)
         {
             Coord transformed = Swizzle(other, rotationIndex);
-            var translatedOther = new Coord { X = transformed.X + originOffset.X, Y = transformed.Y + originOffset.Y, Z = transformed.Z + originOffset.Z };
-            if (coord.X == translatedOther.X && coord.Y == translatedOther.Y && coord.Z == translatedOther.Z)
+
+            var diff = new Coord { X = coord.X - transformed.X, Y = coord.Y - transformed.Y, Z = coord.Z - transformed.Z };
+            if (!diffCounts.TryGetValue(diff, out int count))
             {
-                ++numMatches;
-                break;
+                diffCounts.Add(diff, 1);
+            }
+            else
+            {
+                var newCount = count + 1;
+                diffCounts[diff] = newCount;
+                if (newCount >= 12)
+                {
+                    return diff;
+                }
             }
         }
     }
-    return numMatches;
+    return null;
 }
 
 Coord Swizzle(Coord coord, int swizzleIndex)
@@ -81,24 +104,18 @@ Coord Swizzle(Coord coord, int swizzleIndex)
         case 5: return new Coord { X = -coord.X, Y = coord.Z, Z = coord.Y };
         case 6: return new Coord { X = -coord.X, Y = -coord.Y, Z = coord.Z };
         case 7: return new Coord { X = -coord.X, Y = -coord.Z, Z = -coord.Y };
-
-
         case 8: return new Coord { X = coord.Z, Y = coord.Y, Z = -coord.X };
         case 9: return new Coord { X = coord.Z, Y = coord.X, Z = coord.Y };
         case 10: return new Coord { X = coord.Z, Y = -coord.X, Z = -coord.Y };
         case 11: return new Coord { X = coord.Z, Y = -coord.Y, Z = coord.X };
-
         case 12: return new Coord { X = -coord.Z, Y = coord.Y, Z = coord.X };
         case 13: return new Coord { X = -coord.Z, Y = -coord.X, Z = coord.Y };
         case 14: return new Coord { X = -coord.Z, Y = -coord.Y, Z = -coord.X };
         case 15: return new Coord { X = -coord.Z, Y = coord.X, Z = -coord.Y };
-
-
         case 16: return new Coord { X = coord.Y, Y = -coord.X, Z = coord.Z };
         case 17: return new Coord { X = coord.Y, Y = coord.Z, Z = coord.X };
         case 18: return new Coord { X = coord.Y, Y = -coord.Z, Z = -coord.X };
         case 19: return new Coord { X = coord.Y, Y = coord.X, Z = -coord.Z };
-
         case 20: return new Coord { X = -coord.Y, Y = coord.X, Z = coord.Z };
         case 21: return new Coord { X = -coord.Y, Y = -coord.Z, Z = coord.X };
         case 22: return new Coord { X = -coord.Y, Y = -coord.X, Z = -coord.Z };
