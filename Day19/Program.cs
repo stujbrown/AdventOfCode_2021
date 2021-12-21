@@ -17,6 +17,7 @@ while (remaining.Count > 0)
     }
 }
 
+
 Console.WriteLine($"Total beacons: {map.Count}");
 
 bool RunForScan(Coord[] scan)
