@@ -2,19 +2,40 @@
 var costs = new uint[4] { 1, 10, 100, 1000 };
 var roomExitSpots = new int[4] { 2, 4, 6, 8 };
 
-Console.WriteLine($"Lowest cost: {Solve()}");
+Console.WriteLine($"Lowest cost: {Solve(false)}");
+Console.WriteLine($"Lowest cost with injected entries: {Solve(true)}");
 
-
-Console.WriteLine();
-
-UInt64 Solve()
+UInt64 Solve(bool useInjectedEntries)
 {
+    var examined = new Dictionary<string, UInt64>();
+
     var hallway = new char[11];
-    var rooms = new (char val, bool moved)[4, 2];
-    for (int i = 0; i < 4; ++i)
+    (char val, bool moved)[,] rooms;
+    if (useInjectedEntries)
     {
-        rooms[i, 0] = (val: initialState[2][3 + (i * 2)], moved: false);
-        rooms[i, 1] = (val: initialState[3][3 + (i * 2)], moved: false);
+        rooms = new (char val, bool moved)[4, 4];
+        for (int i = 0; i < 4; ++i)
+        {
+            rooms[i, 0] = (val: initialState[2][3 + (i * 2)], moved: false);
+            rooms[i, 3] = (val: initialState[3][3 + (i * 2)], moved: false);
+        }
+        rooms[0, 1] = (val: 'D', moved: false);
+        rooms[1, 1] = (val: 'C', moved: false);
+        rooms[2, 1] = (val: 'B', moved: false);
+        rooms[3, 1] = (val: 'A', moved: false);
+        rooms[0, 2] = (val: 'D', moved: false);
+        rooms[1, 2] = (val: 'B', moved: false);
+        rooms[2, 2] = (val: 'A', moved: false);
+        rooms[3, 2] = (val: 'C', moved: false);
+    }
+    else
+    {
+        rooms = new (char val, bool moved)[4, 2];
+        for (int i = 0; i < 4; ++i)
+        {
+            rooms[i, 0] = (val: initialState[2][3 + (i * 2)], moved: false);
+            rooms[i, 1] = (val: initialState[3][3 + (i * 2)], moved: false);
+        }
     }
     var state = new State { Hallway = hallway, Rooms = rooms };
 
@@ -27,10 +48,25 @@ UInt64 Solve()
     {
         var top = queue.Dequeue();
         if (top.Cost > lowestCost)
-        {
             break;
+
+        void TryEnqueue(State state)
+        {
+            var key = state.MakeKey();
+            bool shouldAdd = true;
+            if (examined.TryGetValue(key, out var existingCost))
+            {
+                if (state.Cost >= existingCost)
+                {
+                    shouldAdd = false;
+                }
+            }
+            if (shouldAdd)
+            {
+                examined[key] = state.Cost;
+                queue.Enqueue(state, state.Cost);
+            }
         }
-        //PushState();
 
         void MoveToHallway(int room, uint depth)
         {
@@ -64,7 +100,7 @@ UInt64 Solve()
                         uint numSpaces = (depth + 1) + (uint)Math.Abs(targetSpace - exitIndex);
                         newState.Cost += numSpaces * costs[val - 'A'];
 
-                        queue.Enqueue(newState, newState.Cost);
+                        TryEnqueue(newState);
                     }
                 }
             }
@@ -75,19 +111,9 @@ UInt64 Solve()
             if (top.Hallway[i] != default)
             {
                 var val = top.Hallway[i];
-                int placementIndex = -1;
-                if (top.Rooms[val - 'A', 0].val == default)
-                {
-                    var bottomEntry = top.Rooms[val - 'A', 1].val;
-                    if (bottomEntry == default)
-                    {
-                        placementIndex = 1;
-                    }
-                    else if (bottomEntry == val) // Can only go in if not trapping another letter
-                    {
-                        placementIndex = 0;
-                    }
-                }
+                int placementIndex = IndexForRoomPlacement(top, val - 'A');
+
+
 
                 if (placementIndex != -1)
                 {
@@ -125,31 +151,21 @@ UInt64 Solve()
                         }
                         else
                         {
-                            queue.Enqueue(newState, newState.Cost);
+                            TryEnqueue(newState);
+
                         }
-
-
                     }
                 }
             }
         }
 
-        if (top.Hallway.Where(x => x != default).Count() <= 3)
+        for (int i = 0; i < rooms.GetLength(0); ++i)
         {
-
-            for (int i = 0; i < rooms.GetLength(0); ++i)
+            var indexToMove = IndexOfRoomTop(top, i);
+            if (indexToMove >= 0)
             {
-                if (top.Rooms[i, 0].val == default)
-                {
-                    if (top.Rooms[i, 1].val != default && !top.Rooms[i, 1].moved && top.Rooms[i, 1].val != 'A' + i)
-                    {
-                        MoveToHallway(i, 1);
-                    }
-                }
-                else if (!top.Rooms[i, 0].moved && top.Rooms[i, 0].val != i - 'A')
-                {
-                    MoveToHallway(i, 0);
-                }
+                MoveToHallway(i, (uint)indexToMove);
+
             }
         }
     }
@@ -157,13 +173,60 @@ UInt64 Solve()
     return lowestCost;
 }
 
+int IndexForRoomPlacement(State state, int roomIndex)
+{
+    int lastFree = -1;
+    for (int i = 0; i < state.Rooms.GetLength(1); ++i)
+    {
+        if (state.Rooms[roomIndex, i].val != default)
+        {
+            break;
+        }
+        lastFree = i;
+    }
+    if (lastFree == -1)
+    {
+        return -1;
+    }
+
+    for (int i = lastFree + 1; i < state.Rooms.GetLength(1); ++i)
+    {
+        if (state.Rooms[roomIndex, i].val != 'A' + roomIndex)
+            return -1;
+    }
+
+
+    return lastFree;
+}
+
+int IndexOfRoomTop(State state, int roomIndex)
+{
+    for (int i = 0; i < state.Rooms.GetLength(1); ++i)
+    {
+        if (state.Rooms[roomIndex, i].moved == true)
+        {
+            return -1;
+        }
+
+        if (state.Rooms[roomIndex, i].val != default)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
 bool HasWon(State state)
 {
     for (int i = 0; i < state.Rooms.GetLength(0); ++i)
     {
-        if (state.Rooms[i, 0].val != (char)('A' + i) || state.Rooms[i, 1].val != (char)('A' + i))
+        for (int j = 0; j < state.Rooms.GetLength(1); ++j)
         {
-            return false;
+            if (state.Rooms[i, j].val != (char)('A' + i))
+            {
+                return false;
+            }
         }
     }
     return true;
@@ -175,6 +238,16 @@ struct State
     public char[] Hallway;
     public (char val, bool moved)[,] Rooms;
     public UInt64 Cost;
+
+    public string MakeKey()
+    {
+        var s = new System.Text.StringBuilder();
+        s.AppendLine(string.Join(",", Hallway.Select(x => x == default ? '_' : x)));
+        s.AppendLine(string.Join(",", Rooms.Cast<(char val, bool moved)>().Select(x => x.val == default ? ('_', false) : x)));
+        s.AppendLine(Cost.ToString());
+        return s.ToString();
+    }
+
     public void Copy(State other)
     {
         Hallway = new char[other.Hallway.Length];
@@ -184,47 +257,3 @@ struct State
         Array.Copy(other.Rooms, Rooms, other.Rooms.Length);
     }
 };
-
-//int Solve(char[][] hallway)
-//{
-//    var neighbourOffsets = new (int x, int y)[] { (1, 0), (0, 1), (-1, 0), (0, -1) };
-
-//    int MakeIndex(int x, int y) => riskGrid[0].Length * x + y;
-
-//    var distances = new int[riskGrid.Length * riskGrid[0].Length];
-//    var previous = new (int x, int y)[riskGrid.Length * riskGrid[0].Length];
-//    Array.Fill(distances, int.MaxValue);
-//    distances[MakeIndex(0, 0)] = 0;
-
-//    var queue = new PriorityQueue<(int x, int y), int>();
-//    queue.Enqueue((0, 0), 0);
-
-//    while (queue.Count > 0)
-//    {
-//        var top = queue.Dequeue();
-//        foreach (var offset in neighbourOffsets)
-//        {
-//            var neighbour = (x: top.x + offset.x, y: top.y + offset.y);
-//            if (neighbour.x >= 0 && neighbour.x < riskGrid[0].Length && neighbour.y >= 0 && neighbour.y < riskGrid.Length)
-//            {
-//                var distanceTo = riskGrid[neighbour.y][neighbour.x];
-//                var accumulativeDistance = distanceTo + distances[MakeIndex(top.x, top.y)];
-//                if (distances[MakeIndex(neighbour.x, neighbour.y)] > accumulativeDistance)
-//                {
-//                    distances[MakeIndex(neighbour.x, neighbour.y)] = accumulativeDistance;
-//                    previous[MakeIndex(neighbour.x, neighbour.y)] = top;
-//                    queue.Enqueue(neighbour, accumulativeDistance);
-//                }
-//            }
-//        }
-//    }
-
-//    int totalRisk = 0;
-//    var current = (x: riskGrid[0].Length - 1, y: riskGrid.Length - 1);
-//    while (current != (0, 0))
-//    {
-//        totalRisk += riskGrid[current.y][current.x];
-//        current = previous[MakeIndex(current.x, current.y)];
-//    }
-//    return totalRisk;
-//}
